@@ -1,6 +1,6 @@
 // 앱 화면 파일만 캐시한다. GitHub API 요청(사진, 실모, 채점 결과)은 캐시하지 않는다.
-const CACHE = 'silmo-shell-v1';
-const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'config.json', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+const CACHE = 'silmo-shell-v2';
+const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'config.json', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
