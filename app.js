@@ -101,9 +101,9 @@
     el.hidden = !msg; el.textContent = msg || ''; el.classList.toggle('err', !!isErr);
   };
   function fail(e, what) {
-    if (e && e.status === 401) { store.del('gh-token'); token = null; showSetup('토큰이 만료됐거나 올바르지 않습니다. 새 토큰을 붙여 넣어 주세요.'); return; }
-    if (e && e.status === 403) { setStatus(`${what} 토큰의 Contents 권한이 Read and write 인지 확인해 주세요.`, true); return; }
-    setStatus(`${what} 인터넷 연결을 확인하고 다시 시도해 주세요.`, true);
+    if (e && e.status === 401) { store.del('gh-token'); token = null; showSetup('토큰이 만료됐습니다. 새 토큰을 넣어 주세요.'); return; }
+    if (e && e.status === 403) { setStatus(`${what} 토큰의 Contents 권한(Read and write)을 확인하세요.`, true); return; }
+    setStatus(`${what} 인터넷을 확인하세요.`, true);
   }
 
   // ── 화면 전환 ───────────────────────────────────────
@@ -122,7 +122,7 @@
   function showSetup(msg) {
     for (const id of ['tabs', 'view-wrong', 'view-exams', 'foot']) $(id).hidden = true;
     $('setup').hidden = false;
-    $('setup-repo').textContent = $('setup-repo2').textContent = `${cfg.owner}/${cfg.repo}`;
+    $('setup-repo').textContent = `${cfg.owner}/${cfg.repo}`;
     setStatus(msg || '', !!msg);
   }
   function showApp() {
@@ -136,9 +136,9 @@
     const show = (url) => box.replaceChildren(h('img', { src: url, alt: '틀린 문제 사진' }));
     if (thumbs.has(w.sha)) show(thumbs.get(w.sha));
     else {
-      box.append(h('div', { class: 'ph', text: '사진 불러오는 중…' }));
+      box.append(h('div', { class: 'ph', text: '…' }));
       readBlob(w.path).then((b) => { const url = URL.createObjectURL(b); thumbs.set(w.sha, url); show(url); })
-        .catch(() => box.replaceChildren(h('div', { class: 'ph', text: '사진을 불러오지 못했습니다' })));
+        .catch(() => box.replaceChildren(h('div', { class: 'ph', text: '불러오기 실패' })));
     }
     return box;
   }
@@ -146,35 +146,35 @@
   function wrongCard(w) {
     const m = w.meta;
     const chip = m.status === 'recorded' ? h('span', { class: 'chip done', text: '분석 완료' })
-      : m.status === 'unclear' ? h('span', { class: 'chip redo', text: '다시 찍어 주세요' })
-      : h('span', { class: 'chip new', text: '접수됨' });
+      : m.status === 'unclear' ? h('span', { class: 'chip redo', text: '재촬영' })
+      : h('span', { class: 'chip new', text: '접수' });
     const saved = h('span', { class: 'saved', text: '' });
     const memo = h('input', {
       type: 'text', id: 'memo-' + w.name, value: m.memo || '', maxlength: '200',
-      placeholder: '틀린 이유·정답 (선택)', 'aria-label': '틀린 이유나 정답 메모',
+      placeholder: '메모', 'aria-label': '틀린 이유나 정답 메모',
       onchange: async (e) => {
         saved.textContent = '저장 중…';
         try {
           m.memo = e.target.value.trim();
           const r = await putJson(w.metaPath, m, '오답 메모 수정', w.metaSha);
           w.metaSha = r.content.sha; saved.textContent = '저장됨';
-        } catch (err) { saved.textContent = '저장하지 못했습니다'; fail(err, '메모를 저장하지 못했습니다.'); }
+        } catch (err) { saved.textContent = ''; fail(err, '메모 저장 실패.'); }
       },
     });
     let armed = false;
     const del = h('button', {
       class: 'linkbtn', type: 'button', text: '삭제',
       onclick: async () => {
-        if (!armed) { armed = true; del.textContent = '한 번 더 누르면 삭제'; del.classList.add('sure'); setTimeout(() => { armed = false; del.textContent = '삭제'; del.classList.remove('sure'); }, 4000); return; }
+        if (!armed) { armed = true; del.textContent = '삭제 확인'; del.classList.add('sure'); setTimeout(() => { armed = false; del.textContent = '삭제'; del.classList.remove('sure'); }, 4000); return; }
         del.disabled = true;
         try {
           await delFile(w.path, w.sha, '오답 사진 삭제');
           if (w.metaSha) await delFile(w.metaPath, w.metaSha, '오답 메모 삭제');
           wrongs = wrongs.filter((x) => x !== w); renderWrongs();
-        } catch (err) { del.disabled = false; fail(err, '삭제하지 못했습니다.'); }
+        } catch (err) { del.disabled = false; fail(err, '삭제 실패.'); }
       },
     });
-    const when = m.createdAt ? new Date(m.createdAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+    const when = m.createdAt ? new Date(m.createdAt).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric', weekday: 'short' }) : '';
     return h('article', { class: 'card' },
       thumb(w),
       h('div', { class: 'body' },
@@ -188,14 +188,14 @@
   function renderHeader() {
     const week = targetSunday();
     const days = Math.round((new Date(week + 'T00:00:00Z') - kstToday()) / 864e5);
-    $('dday-label').textContent = `다음 실모 · ${fmtDate(week)}(일)`;
-    $('dday').textContent = days === 0 ? '오늘 아침' : `D-${days}`;
-    $('week-title').textContent = `${fmtDate(week)} 실모에 들어갈 문제`;
+    $('dday-label').textContent = `${fmtDate(week)} 실모`;
+    $('dday').textContent = days === 0 ? 'D-DAY' : `D-${days}`;
+    $('week-title').textContent = '이번 주 오답';
   }
 
   function renderWrongs() {
     renderHeader();
-    $('week-count').textContent = wrongs.length || uploading ? `${wrongs.length}문제${uploading ? ` · 올리는 중 ${uploading}장` : ''}` : '';
+    $('week-count').textContent = uploading ? `올리는 중 ${uploading}` : wrongs.length ? `${wrongs.length}` : '';
     const active = document.activeElement;
     if (!(active && active.id && active.id.startsWith('memo-'))) $('wrong-list').replaceChildren(...wrongs.map(wrongCard));
     $('wrong-empty').hidden = !loaded || wrongs.length > 0 || uploading > 0;
@@ -251,8 +251,8 @@
       uploading--; renderWrongs();
     }
     if (failed) {
-      if (lastErr && lastErr.status) fail(lastErr, `${failed}장을 올리지 못했습니다.`);
-      else setStatus(`${failed}장을 올리지 못했습니다. 사진 파일(JPG·PNG)인지 확인하고 다시 추가해 주세요.`, true);
+      if (lastErr && lastErr.status) fail(lastErr, `${failed}장 업로드 실패.`);
+      else setStatus(`${failed}장 업로드 실패. JPG·PNG 사진인지 확인하세요.`, true);
     }
   });
 
@@ -279,7 +279,7 @@
       if (!end) { out.textContent = '100:00'; btn.textContent = '100분 시작'; return; }
       const left = Math.max(0, Math.round((end - Date.now()) / 1000));
       out.textContent = `${String(Math.floor(left / 60)).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}`;
-      btn.textContent = left ? '타이머 초기화' : '시간 종료 · 초기화';
+      btn.textContent = left ? '초기화' : '종료 · 초기화';
     };
     btn.addEventListener('click', () => {
       if (store.get(timerKey(exam.date))) store.del(timerKey(exam.date));
@@ -318,17 +318,17 @@
       if (done) {
         const ok = !result.wrong.includes(n);
         cls += ok ? ' ok' : ' ng';
-        mark = h('span', { class: 'mark', text: ok ? '정답' : `오답 · 정답 ${isShort ? correct : CIRC[correct - 1]}` });
+        mark = h('span', { class: 'mark', text: ok ? '○' : `정답 ${isShort ? correct : CIRC[correct - 1]}` });
       }
       return h('div', { class: cls }, h('span', { class: 'n', text: n + '.' }), field, mark);
     });
 
-    const msg = h('p', { class: 'hint', text: done ? '' : '답을 표시한 뒤 채점하면 틀린 문항이 다음 주 실모에 반영됩니다.' });
+    const msg = h('p', { class: 'hint', text: '' });
     const submit = h('button', {
-      class: 'btn primary', type: 'button', text: '채점하기',
+      class: 'btn primary', type: 'button', text: '채점',
       onclick: async () => {
         const blank = answers.filter((a) => a == null).length;
-        if (blank && submit.dataset.sure !== '1') { submit.dataset.sure = '1'; submit.textContent = `${blank}문항이 비어 있습니다 · 그대로 채점`; return; }
+        if (blank && submit.dataset.sure !== '1') { submit.dataset.sure = '1'; submit.textContent = `미입력 ${blank}문항 · 그대로 채점`; return; }
         submit.disabled = true; submit.textContent = '채점 중…';
         const g = grade(exam, answers);
         const data = { date: exam.date, answers, score: g.score, wrong: g.wrong, submittedAt: new Date().toISOString() };
@@ -337,27 +337,26 @@
           results[exam.date] = data;
           store.del(draftKey(exam.date)); store.del(timerKey(exam.date));
           renderExams();
-        } catch (err) { submit.disabled = false; submit.textContent = '채점하기'; fail(err, '채점 결과를 저장하지 못했습니다.'); }
+        } catch (err) { submit.disabled = false; submit.textContent = '채점'; fail(err, '채점 저장 실패.'); }
       },
     });
     return h('div', { style: 'display:flex;flex-direction:column;gap:12px' },
       done ? null : timerBox(exam),
       h('div', { class: 'omr' }, rows),
-      msg,
-      done ? null : h('div', {}, submit));
+      done ? null : h('div', {}, submit, msg));
   }
 
   // PDF 는 비공개 저장소에 있어 토큰으로 받아 온 뒤 기기에 저장해 연다.
   function pdfButton(label, path, filename, primary) {
     const btn = h('button', { class: 'btn' + (primary ? ' primary' : ''), type: 'button', text: label });
     btn.addEventListener('click', async () => {
-      btn.disabled = true; btn.textContent = '받는 중…';
+      btn.disabled = true; btn.textContent = '…';
       try {
         const blob = await readBlob(path);
         const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
         const a = h('a', { href: url, download: filename }); document.body.append(a); a.click(); a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 60000);
-      } catch (err) { fail(err, 'PDF 를 받지 못했습니다.'); }
+      } catch (err) { fail(err, 'PDF 받기 실패.'); }
       btn.disabled = false; btn.textContent = label;
     });
     return btn;
@@ -368,19 +367,19 @@
     const valid = Array.isArray(exam.answers) && exam.answers.length === 30 && Array.isArray(exam.points) && Array.isArray(exam.formats);
     const kids = [
       h('div', { class: 'rowhead' },
-        h('h3', { text: `제${exam.round ?? '–'}회 · ${fmtDate(exam.date)}(일)` }),
-        result ? h('div', { class: 'score' }, h('b', { text: String(result.score) }), h('span', { text: '/ 100점' })) : null),
+        h('h3', {}, `제${exam.round ?? '–'}회`, h('span', { class: 'when', text: fmtDate(exam.date) })),
+        result ? h('div', { class: 'score' }, h('b', { text: String(result.score) }), h('span', { text: '/100' })) : null),
       exam.summary ? h('p', { class: 'sub', text: exam.summary }) : null,
       h('div', { class: 'links' },
-        exam.examPdf ? pdfButton('문제지 PDF', exam.examPdf, `실모-제${exam.round ?? ''}회-문제지.pdf`, true) : null,
-        exam.solPdf ? pdfButton('해설지 PDF', exam.solPdf, `실모-제${exam.round ?? ''}회-해설지.pdf`, false) : null,
-        valid ? h('button', { class: 'btn quiet', type: 'button', text: openOmr === exam.date ? '답안지 접기' : result ? '채점 결과 보기' : '답안 입력 · 채점',
+        exam.examPdf ? pdfButton('문제지', exam.examPdf, `실모-제${exam.round ?? ''}회-문제지.pdf`, true) : null,
+        exam.solPdf ? pdfButton('해설지', exam.solPdf, `실모-제${exam.round ?? ''}회-해설지.pdf`, false) : null,
+        valid ? h('button', { class: 'btn quiet', type: 'button', text: openOmr === exam.date ? '접기' : result ? '결과' : '채점',
           onclick: () => { openOmr = openOmr === exam.date ? null : exam.date; renderExams(); } }) : null),
     ];
     if (result && result.wrong.length) {
       kids.push(h('ul', { class: 'misses' }, result.wrong.map((n) =>
-        h('li', { text: `${n}번 · ${(exam.types && exam.types[n - 1]) || '유형 미기재'}${exam.based && exam.based[n - 1] ? ' (지난 오답 유사)' : ''}` }))));
-    } else if (result) kids.push(h('p', { class: 'sub', text: '30문항 모두 맞혔습니다.' }));
+        h('li', {}, h('span', { class: 'no', text: `${n}번` }), h('span', { text: (exam.types && exam.types[n - 1]) || '' })))));
+    }
     if (valid && openOmr === exam.date) kids.push(omrPanel(exam, result));
     return h('article', { class: 'exam' }, kids);
   }
@@ -390,7 +389,7 @@
     $('exam-list').replaceChildren(...exams.map(examCard));
     const empty = $('exam-empty');
     empty.hidden = !loaded || exams.length > 0;
-    if (!empty.hidden) empty.textContent = `아직 만들어진 실모가 없습니다. 틀린 문제를 보내 두면 ${fmtDate(targetSunday())} 일요일 아침에 문제지와 해설지가 여기에 올라옵니다.`;
+    if (!empty.hidden) empty.textContent = `첫 실모 · ${fmtDate(targetSunday())}(일)`;
   }
 
   async function loadExams() {
@@ -408,35 +407,35 @@
   async function refresh() {
     if (busy || !token) return;
     busy = true;
-    if (!loaded) setStatus('불러오는 중…');
+    if (!loaded) setStatus('불러오는 중');
     try {
       await loadExams();       // 이번 회차 일요일을 정하려면 실모 목록이 먼저 필요하다.
       await loadWrongs();
       loaded = true; setStatus('');
       renderWrongs(); renderExams();
-    } catch (e) { fail(e, '자료를 불러오지 못했습니다.'); }
+    } catch (e) { fail(e, '불러오기 실패.'); }
     busy = false;
   }
 
   $('connect').addEventListener('click', async () => {
     const value = $('token').value.trim();
-    if (!value) { setStatus('토큰을 붙여 넣어 주세요.', true); return; }
-    token = value; $('connect').disabled = true; setStatus('연결 확인 중…');
+    if (!value) { setStatus('토큰을 넣어 주세요.', true); return; }
+    token = value; $('connect').disabled = true; setStatus('확인 중');
     try {
       await api(`contents/README.md?ref=${encodeURIComponent(cfg.branch)}`);
       store.set('gh-token', token); $('token').value = '';
       showApp(); await refresh();
     } catch (e) {
       token = null;
-      setStatus(e.status === 401 ? '토큰이 올바르지 않습니다. 복사한 값을 다시 확인해 주세요.'
-        : e.status === 404 || e.status === 403 ? `이 토큰으로는 ${cfg.owner}/${cfg.repo} 저장소를 볼 수 없습니다. 3번과 4번 단계를 다시 확인해 주세요.`
-        : '연결하지 못했습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.', true);
+      setStatus(e.status === 401 ? '토큰이 올바르지 않습니다.'
+        : e.status === 404 || e.status === 403 ? `이 토큰으로 ${cfg.owner}/${cfg.repo} 에 접근할 수 없습니다. 2·3번을 확인하세요.`
+        : '연결 실패. 인터넷을 확인하세요.', true);
     }
     $('connect').disabled = false;
   });
   let logoutArmed = false;
   $('logout').addEventListener('click', () => {
-    if (!logoutArmed) { logoutArmed = true; $('logout').textContent = '한 번 더 누르면 이 기기에서 토큰 삭제'; setTimeout(() => { logoutArmed = false; $('logout').textContent = '연결 해제'; }, 4000); return; }
+    if (!logoutArmed) { logoutArmed = true; $('logout').textContent = '해제 확인'; setTimeout(() => { logoutArmed = false; $('logout').textContent = '연결 해제'; }, 4000); return; }
     store.del('gh-token'); token = null; loaded = false; wrongs = []; exams = []; results = {};
     $('logout').textContent = '연결 해제'; logoutArmed = false; showSetup();
   });

@@ -4,41 +4,35 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>TESTRA</title>
-<meta name="theme-color" content="#12161f">
+<meta name="theme-color" content="#f5f6fa" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b0e14" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=Noto+Serif+KR:wght@700;900&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="wrap">
   <header class="mast">
-    <div>
-      <span class="period">주간 오답 실모 · 2028 수능 체제</span>
-      <h1>TESTRA</h1>
-    </div>
-    <div class="dday"><span id="dday-label">다음 실모</span><b id="dday">–</b></div>
+    <div class="brand"><img src="icon-192.png" alt=""><h1>TESTRA</h1></div>
+    <div class="dday"><span id="dday-label"></span><b id="dday">–</b></div>
   </header>
 
   <section class="setup" id="setup" hidden>
-    <h2>처음 한 번만 연결하면 됩니다</h2>
-    <p class="hint">틀린 문제 사진과 실모는 비공개 저장소 <code id="setup-repo"></code> 에 보관됩니다. 이 앱이 거기에 읽고 쓸 수 있도록 접근 토큰을 붙여 넣어 주세요.</p>
+    <h2>저장소 연결</h2>
     <ol>
-      <li><a id="setup-link" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub 토큰 만들기 페이지</a>를 엽니다.</li>
-      <li><b>Token name</b>에 <code>silmo-app</code>, <b>Expiration</b>은 원하는 기간을 고릅니다.</li>
-      <li><b>Repository access</b>에서 <b>Only select repositories</b>를 고르고 <code id="setup-repo2"></code> 하나만 선택합니다.</li>
-      <li><b>Permissions → Repository permissions → Contents</b>를 <b>Read and write</b>로 바꿉니다.</li>
-      <li><b>Generate token</b>을 누르고 나온 <code>github_pat_…</code> 값을 복사해 아래에 붙여 넣습니다.</li>
+      <li><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">토큰 만들기</a></li>
+      <li>Repository access → Only select repositories → <code id="setup-repo"></code></li>
+      <li>Permissions → Contents → Read and write</li>
+      <li>Generate token → 아래에 붙여 넣기</li>
     </ol>
     <input type="password" id="token" autocomplete="off" placeholder="github_pat_…" aria-label="접근 토큰">
-    <div><button class="btn primary" type="button" id="connect">연결하기</button></div>
-    <p class="hint">토큰은 이 기기의 브라우저에만 저장되고 GitHub 외의 어디로도 보내지 않습니다.</p>
+    <div><button class="btn primary" type="button" id="connect">연결</button></div>
   </section>
 
   <nav class="tabs" id="tabs" aria-label="화면" hidden>
-    <a href="#wrong" id="tab-wrong">이번 주 오답</a>
+    <a href="#wrong" id="tab-wrong">오답</a>
     <a href="#exams" id="tab-exams">실모</a>
   </nav>
 
@@ -46,16 +40,15 @@
 
   <section class="view" id="view-wrong" hidden>
     <label class="drop" id="drop">
-      <strong>틀린 문제 사진 추가</strong>
-      <span class="hint">한 장에 한 문제가 가장 정확합니다. 여러 장을 한 번에 골라도 됩니다.</span>
+      <span class="plus" aria-hidden="true">＋</span><span>사진 추가</span>
       <input type="file" id="file" accept="image/*" multiple>
     </label>
     <div class="rowhead">
-      <h2 id="week-title">이번 주에 보낸 문제</h2>
+      <h2 id="week-title"></h2>
       <span class="count" id="week-count"></span>
     </div>
     <div class="cards" id="wrong-list"></div>
-    <div class="empty" id="wrong-empty" hidden>아직 보낸 문제가 없습니다. 위에서 사진을 추가하면 일요일 실모에 그 유형이 들어갑니다.</div>
+    <div class="empty" id="wrong-empty" hidden>틀린 문제 사진을 추가하세요</div>
   </section>
 
   <section class="view" id="view-exams" hidden>
