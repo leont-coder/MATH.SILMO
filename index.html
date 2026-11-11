@@ -34,6 +34,7 @@
   <nav class="tabs" id="tabs" aria-label="화면" hidden>
     <a href="#wrong" id="tab-wrong">오답</a>
     <a href="#exams" id="tab-exams">실모</a>
+    <a href="#stats" id="tab-stats">통계</a>
   </nav>
 
   <div class="notice" id="status" role="status" hidden></div>
@@ -59,6 +60,11 @@
   <section class="view" id="view-exams" hidden>
     <div id="exam-list" style="display:flex;flex-direction:column;gap:18px"></div>
     <div class="empty" id="exam-empty" hidden></div>
+  </section>
+
+  <section class="view" id="view-stats" hidden>
+    <div id="stat-list" style="display:flex;flex-direction:column;gap:18px"></div>
+    <div class="empty" id="stat-empty" hidden>실모를 채점하면 통계가 쌓입니다</div>
   </section>
 
   <footer class="foot" id="foot" hidden>

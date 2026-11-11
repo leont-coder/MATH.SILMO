@@ -49,7 +49,7 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .dday b { font-size: 15px; font-weight: 700; color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); padding: 5px 11px; border-radius: 999px; font-variant-numeric: tabular-nums; }
 
 /* 탭 */
-.tabs { display: grid; grid-template-columns: 1fr 1fr; background: var(--fill); border-radius: 14px; padding: 4px; }
+.tabs { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--fill); border-radius: 14px; padding: 4px; }
 .tabs a { text-align: center; text-decoration: none; color: var(--soft); font-weight: 600; font-size: 15px; padding: 10px; border-radius: 11px; }
 .tabs a[aria-current="page"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(11, 18, 32, .1); }
 
@@ -139,3 +139,18 @@ section.view { display: flex; flex-direction: column; gap: 18px; }
 .subjects button[aria-pressed="true"] { background: var(--ink); color: var(--card); }
 .bub.self { width: 44px; border-radius: 12px; font-size: 15px; }
 .q .essay { font-size: 13px; font-weight: 600; color: var(--soft); align-self: center; margin-right: 4px; }
+
+/* 통계: 한 계열뿐이라 색은 강조색 하나, 값은 글자로 함께 적는다 */
+.trend { display: flex; align-items: flex-end; gap: 10px; height: 150px; padding-top: 4px; }
+.tcol { flex: 1 1 0; max-width: 56px; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; border-radius: 8px; }
+.tval { font-size: 12px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+.tbar { flex: 1; width: 100%; max-width: 28px; display: flex; align-items: flex-end; background: var(--fill); border-radius: 4px 4px 0 0; }
+.tbar i { display: block; width: 100%; background: var(--accent); border-radius: 4px 4px 0 0; }
+.tlab { font-size: 12px; color: var(--soft); font-variant-numeric: tabular-nums; }
+.weak { display: flex; flex-direction: column; gap: 10px; }
+.weak h4 { margin: 4px 0 0; font-size: 14px; font-weight: 700; color: var(--soft); }
+.wrow { display: grid; grid-template-columns: minmax(90px, 30%) 1fr auto; align-items: center; gap: 12px; font-size: 14px; }
+.wname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.wbar { height: 10px; background: var(--fill); border-radius: 0 4px 4px 0; }
+.wbar i { display: block; height: 100%; background: var(--accent); border-radius: 0 4px 4px 0; }
+.wval { font-variant-numeric: tabular-nums; color: var(--soft); font-weight: 600; min-width: 3.2em; text-align: right; }

@@ -111,10 +111,11 @@
   // ── 화면 전환 ───────────────────────────────────────
   function route() {
     if (!token) return;
-    const view = location.hash === '#exams' ? 'exams' : 'wrong';
+    const view = location.hash === '#exams' ? 'exams' : location.hash === '#stats' ? 'stats' : 'wrong';
     $('view-wrong').hidden = view !== 'wrong';
     $('view-exams').hidden = view !== 'exams';
-    for (const v of ['wrong', 'exams']) {
+    $('view-stats').hidden = view !== 'stats';
+    for (const v of ['wrong', 'exams', 'stats']) {
       if (v === view) $('tab-' + v).setAttribute('aria-current', 'page');
       else $('tab-' + v).removeAttribute('aria-current');
     }
@@ -122,7 +123,7 @@
   addEventListener('hashchange', route);
 
   function showSetup(msg) {
-    for (const id of ['tabs', 'view-wrong', 'view-exams', 'foot']) $(id).hidden = true;
+    for (const id of ['tabs', 'view-wrong', 'view-exams', 'view-stats', 'foot']) $(id).hidden = true;
     $('setup').hidden = false;
     $('setup-repo').textContent = `${cfg.owner}/${cfg.repo}`;
     setStatus(msg || '', !!msg);
@@ -359,7 +360,7 @@
           await putJson(`app-data/results/${exam.id}.json`, data, `제${exam.round ?? ''}회 ${exam.subject} 채점 결과`);
           results[exam.id] = data;
           store.del(draftKey(exam.id)); store.del(timerKey(exam.id));
-          renderExams();
+          renderExams(); renderStats();
         } catch (err) { submit.disabled = false; submit.textContent = '채점'; fail(err, '채점 저장 실패.'); }
       },
     });
@@ -426,6 +427,59 @@
     results = Object.fromEntries(rs.map((r) => [r.id || r.date, r]));
   }
 
+  // ── 통계 화면 ───────────────────────────────────────
+  // 채점한 실모만 집계한다. 유형은 "단원 · 유형"의 앞부분(단원)으로 묶는다.
+  const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+  function subjectStats(subj) {
+    const done = exams.filter((e) => e.subject === subj && results[e.id] && Array.isArray(e.points)).sort((a, b) => a.date.localeCompare(b.date));
+    if (!done.length) return null;
+    const rounds = done.map((e) => ({ label: `${e.round ?? ''}회`, date: e.date, score: results[e.id].score, total: e.total, p: pct(results[e.id].score, e.total) }));
+    const groups = new Map(), exact = new Map();
+    for (const e of done) {
+      const wrong = new Set(results[e.id].wrong);
+      (e.types || []).forEach((t, i) => {
+        const key = (t || '기타').split(' · ')[0];
+        const g = groups.get(key) || { key, n: 0, miss: 0 };
+        g.n++; if (wrong.has(i + 1)) { g.miss++; exact.set(t, (exact.get(t) || 0) + 1); }
+        groups.set(key, g);
+      });
+    }
+    const weak = [...groups.values()].filter((g) => g.miss > 0).sort((a, b) => b.miss / b.n - a.miss / a.n || b.miss - a.miss).slice(0, 6);
+    const repeat = [...exact.entries()].filter(([t]) => t.includes(' · ')).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    return { rounds, weak, repeat, avg: Math.round(rounds.reduce((s, r) => s + r.p, 0) / rounds.length) };
+  }
+
+  function statCard(subj, st) {
+    const last = st.rounds.at(-1), prev = st.rounds.at(-2);
+    const diff = prev ? last.p - prev.p : null;
+    const recent = st.rounds.slice(-12);
+    return h('article', { class: 'exam' },
+      h('div', { class: 'rowhead' },
+        h('h3', { text: subj }),
+        h('div', { class: 'score' }, h('b', { text: `${last.p}` }), h('span', { text: '%' }))),
+      h('p', { class: 'sub', text: `최근 ${last.score}/${last.total}점${diff == null ? '' : ` · 지난 회차 대비 ${diff > 0 ? '+' : ''}${diff}%p`} · 평균 ${st.avg}% · ${st.rounds.length}회` }),
+      h('div', { class: 'trend', role: 'img', 'aria-label': `${subj} 회차별 득점률` }, recent.map((r) =>
+        h('div', { class: 'tcol', title: `${r.label} ${fmtDate(r.date)} · ${r.score}/${r.total}점 (${r.p}%)`, tabindex: '0' },
+          h('span', { class: 'tval', text: `${r.p}` }),
+          h('div', { class: 'tbar' }, h('i', { style: `height:${Math.max(r.p, 2)}%` })),
+          h('span', { class: 'tlab', text: r.label })))),
+      st.weak.length ? h('div', { class: 'weak' },
+        h('h4', { text: '약한 영역' }),
+        st.weak.map((g) => h('div', { class: 'wrow', title: `${g.key} · ${g.n}문항 중 ${g.miss}문항 오답` },
+          h('span', { class: 'wname', text: g.key }),
+          h('div', { class: 'wbar' }, h('i', { style: `width:${pct(g.miss, g.n)}%` })),
+          h('span', { class: 'wval', text: `${g.miss}/${g.n}` })))) : h('p', { class: 'sub', text: '틀린 문항 없음' }),
+      st.repeat.length ? h('div', { class: 'weak' },
+        h('h4', { text: '틀린 유형' }),
+        h('ul', { class: 'misses' }, st.repeat.map(([t, c]) => h('li', {}, h('span', { class: 'no', text: `×${c}` }), h('span', { text: t.split(' · ').slice(1).join(' · ') }))))) : null);
+  }
+
+  function renderStats() {
+    const cards = SUBJECTS.map((subj) => [subj, subjectStats(subj)]).filter(([, st]) => st).map(([subj, st]) => statCard(subj, st));
+    $('stat-list').replaceChildren(...cards);
+    $('stat-empty').hidden = !loaded || cards.length > 0;
+  }
+
   // ── 시작 ───────────────────────────────────────────
   let busy = false;
   async function refresh() {
@@ -436,7 +490,7 @@
       await loadExams();       // 이번 회차 일요일을 정하려면 실모 목록이 먼저 필요하다.
       await loadWrongs();
       loaded = true; setStatus('');
-      renderWrongs(); renderExams();
+      renderWrongs(); renderExams(); renderStats();
     } catch (e) { fail(e, '불러오기 실패.'); }
     busy = false;
   }
