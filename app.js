@@ -1,7 +1,7 @@
 // 주간 오답 실모 앱. 자료는 비공개 GitHub 저장소에 두고 GitHub API 로 읽고 쓴다.
 //   inbox/<일요일>/<이름>.jpg + <이름>.json   틀린 문제 사진과 메모·분석 상태
-//   app-data/exams/<일요일>.json              실모 정보 (정답, 배점, 유형, PDF 경로)
-//   app-data/results/<일요일>.json            채점 결과
+//   app-data/exams/<일요일>-<과목>.json       실모 정보 (정답, 배점, 유형, PDF 경로). 과목: math | korean | english
+//   app-data/results/<일요일>-<과목>.json     채점 결과
 (() => {
   const $ = (id) => document.getElementById(id);
   const h = (tag, props = {}, ...kids) => {
@@ -90,6 +90,8 @@
   const delFile = (path, sha, message) => write(() => api(`contents/${enc(path)}`, { method: 'DELETE', body: { message, sha, branch: cfg.branch } }));
 
   // ── 상태 ───────────────────────────────────────────
+  const SUBJECTS = ['수학', '국어', '영어'];
+  let subject = SUBJECTS.includes(store.get('subject')) ? store.get('subject') : '수학';
   let wrongs = [], exams = [], results = {};
   let loaded = false;
   let openOmr = null;
@@ -178,7 +180,7 @@
     return h('article', { class: 'card' },
       thumb(w),
       h('div', { class: 'body' },
-        h('div', { class: 'meta' }, h('span', { text: when }), chip),
+        h('div', { class: 'meta' }, h('span', { text: m.pages > 1 ? `${when} · ${m.page}/${m.pages}` : when }), chip),
         m.type ? h('p', { class: 'type', text: m.type }) : null,
         m.note ? h('p', { class: 'note', text: m.note }) : null,
         memo,
@@ -190,15 +192,18 @@
     const days = Math.round((new Date(week + 'T00:00:00Z') - kstToday()) / 864e5);
     $('dday-label').textContent = `${fmtDate(week)} 실모`;
     $('dday').textContent = days === 0 ? 'D-DAY' : `D-${days}`;
-    $('week-title').textContent = '이번 주 오답';
+    $('week-title').textContent = subject === '수학' ? '이번 주 오답' : '이번 주 지문';
+    for (const b of document.querySelectorAll('#subjects button')) b.setAttribute('aria-pressed', String(b.dataset.s === subject));
   }
 
   function renderWrongs() {
     renderHeader();
-    $('week-count').textContent = uploading ? `올리는 중 ${uploading}` : wrongs.length ? `${wrongs.length}` : '';
+    const mine = wrongs.filter((w) => (w.meta.subject || '수학') === subject);
+    $('week-count').textContent = uploading ? `올리는 중 ${uploading}` : mine.length ? `${mine.length}` : '';
     const active = document.activeElement;
-    if (!(active && active.id && active.id.startsWith('memo-'))) $('wrong-list').replaceChildren(...wrongs.map(wrongCard));
-    $('wrong-empty').hidden = !loaded || wrongs.length > 0 || uploading > 0;
+    if (!(active && active.id && active.id.startsWith('memo-'))) $('wrong-list').replaceChildren(...mine.map(wrongCard));
+    $('wrong-empty').hidden = !loaded || mine.length > 0 || uploading > 0;
+    $('wrong-empty').textContent = subject === '수학' ? '틀린 문제 사진을 추가하세요' : '지문 사진을 추가하세요 · 한 지문이 여러 장이면 한 번에 선택';
   }
 
   async function loadWrongs() {
@@ -236,12 +241,17 @@
     const week = targetSunday();
     let failed = 0, lastErr = null;
     uploading = files.length; renderWrongs();
+    // 국어·영어는 한 번에 고른 사진들을 한 지문으로 묶는다.
+    const group = subject !== '수학' && files.length > 1 ? `g${Date.now().toString(36)}` : null;
+    let page = 0;
     for (const f of files) {
+      page++;
       try {
         const blob = await toJpeg(f);
         const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..*/, '');
-        const base = `${stamp}-${Math.random().toString(36).slice(2, 6)}`;
-        const meta = { memo: '', status: 'new', createdAt: new Date().toISOString() };
+        const base = `${stamp}-${String(page).padStart(2, '0')}-${Math.random().toString(36).slice(2, 6)}`;
+        const meta = { subject, memo: '', status: 'new', createdAt: new Date().toISOString() };
+        if (group) Object.assign(meta, { group, page, pages: files.length });
         const bytes = new Uint8Array(await blob.arrayBuffer());
         const img = await putFile(`inbox/${week}/${base}.jpg`, b64FromBytes(bytes), '오답 사진 추가');
         const mj = await putJson(`inbox/${week}/${base}.json`, meta, '오답 메모 추가');
@@ -258,8 +268,8 @@
 
   // ── 실모 화면 ───────────────────────────────────────
   const CIRC = ['①', '②', '③', '④', '⑤'];
-  const draftKey = (date) => 'omr-draft-' + date;
-  const timerKey = (date) => 'omr-timer-' + date;
+  const draftKey = (id) => 'omr-draft-' + id;
+  const timerKey = (id) => 'omr-timer-' + id;
   let tick = null;
 
   function grade(exam, answers) {
@@ -272,18 +282,19 @@
   }
 
   function timerBox(exam) {
-    const out = h('output', { text: '100:00' });
+    const mins = exam.minutes;
+    const out = h('output', { text: `${mins}:00` });
     const btn = h('button', { class: 'btn quiet', type: 'button' });
     const paint = () => {
-      const end = store.get(timerKey(exam.date));
-      if (!end) { out.textContent = '100:00'; btn.textContent = '100분 시작'; return; }
+      const end = store.get(timerKey(exam.id));
+      if (!end) { out.textContent = `${mins}:00`; btn.textContent = `${mins}분 시작`; return; }
       const left = Math.max(0, Math.round((end - Date.now()) / 1000));
       out.textContent = `${String(Math.floor(left / 60)).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}`;
       btn.textContent = left ? '초기화' : '종료 · 초기화';
     };
     btn.addEventListener('click', () => {
-      if (store.get(timerKey(exam.date))) store.del(timerKey(exam.date));
-      else store.set(timerKey(exam.date), Date.now() + 100 * 60e3);
+      if (store.get(timerKey(exam.id))) store.del(timerKey(exam.id));
+      else store.set(timerKey(exam.id), Date.now() + mins * 60e3);
       paint();
     });
     clearInterval(tick); tick = setInterval(paint, 1000); paint();
@@ -292,16 +303,16 @@
 
   function omrPanel(exam, result) {
     const done = !!result;
-    const answers = done ? result.answers.slice() : (store.get(draftKey(exam.date)) || Array(30).fill(null));
+    const answers = done ? result.answers.slice() : (store.get(draftKey(exam.id)) || Array(exam.answers.length).fill(null));
     const rows = exam.answers.map((correct, i) => {
       const n = i + 1;
       const isShort = exam.formats[i] === '단답';
       let field;
       if (isShort) {
         field = h('input', {
-          type: 'text', inputmode: 'numeric', maxlength: '3', id: `a-${exam.date}-${n}`, value: answers[i] ?? '',
+          type: 'text', inputmode: 'numeric', maxlength: '3', id: `a-${exam.id}-${n}`, value: answers[i] ?? '',
           'aria-label': `${n}번 답`, disabled: done,
-          oninput: (e) => { e.target.value = e.target.value.replace(/\D/g, ''); answers[i] = e.target.value === '' ? null : Number(e.target.value); store.set(draftKey(exam.date), answers); },
+          oninput: (e) => { e.target.value = e.target.value.replace(/\D/g, ''); answers[i] = e.target.value === '' ? null : Number(e.target.value); store.set(draftKey(exam.id), answers); },
         });
       } else {
         const bubs = CIRC.map((_, k) => h('button', {
@@ -309,7 +320,7 @@
           onclick: () => {
             answers[i] = answers[i] === k + 1 ? null : k + 1;
             bubs.forEach((b, j) => b.setAttribute('aria-pressed', String(answers[i] === j + 1)));
-            store.set(draftKey(exam.date), answers);
+            store.set(draftKey(exam.id), answers);
           },
         }));
         field = h('div', { class: 'bubbles' }, bubs);
@@ -331,17 +342,17 @@
         if (blank && submit.dataset.sure !== '1') { submit.dataset.sure = '1'; submit.textContent = `미입력 ${blank}문항 · 그대로 채점`; return; }
         submit.disabled = true; submit.textContent = '채점 중…';
         const g = grade(exam, answers);
-        const data = { date: exam.date, answers, score: g.score, wrong: g.wrong, submittedAt: new Date().toISOString() };
+        const data = { id: exam.id, date: exam.date, subject: exam.subject, answers, score: g.score, wrong: g.wrong, submittedAt: new Date().toISOString() };
         try {
-          await putJson(`app-data/results/${exam.date}.json`, data, `제${exam.round ?? ''}회 채점 결과`);
-          results[exam.date] = data;
-          store.del(draftKey(exam.date)); store.del(timerKey(exam.date));
+          await putJson(`app-data/results/${exam.id}.json`, data, `제${exam.round ?? ''}회 ${exam.subject} 채점 결과`);
+          results[exam.id] = data;
+          store.del(draftKey(exam.id)); store.del(timerKey(exam.id));
           renderExams();
         } catch (err) { submit.disabled = false; submit.textContent = '채점'; fail(err, '채점 저장 실패.'); }
       },
     });
     return h('div', { style: 'display:flex;flex-direction:column;gap:12px' },
-      done ? null : timerBox(exam),
+      done || !exam.minutes ? null : timerBox(exam),
       h('div', { class: 'omr' }, rows),
       done ? null : h('div', {}, submit, msg));
   }
@@ -363,24 +374,24 @@
   }
 
   function examCard(exam) {
-    const result = results[exam.date];
-    const valid = Array.isArray(exam.answers) && exam.answers.length === 30 && Array.isArray(exam.points) && Array.isArray(exam.formats);
+    const result = results[exam.id];
+    const valid = Array.isArray(exam.answers) && exam.answers.length > 0 && Array.isArray(exam.points) && Array.isArray(exam.formats);
     const kids = [
       h('div', { class: 'rowhead' },
-        h('h3', {}, `제${exam.round ?? '–'}회`, h('span', { class: 'when', text: fmtDate(exam.date) })),
-        result ? h('div', { class: 'score' }, h('b', { text: String(result.score) }), h('span', { text: '/100' })) : null),
+        h('h3', {}, `${exam.subject} 제${exam.round ?? '–'}회`, h('span', { class: 'when', text: fmtDate(exam.date) })),
+        result ? h('div', { class: 'score' }, h('b', { text: String(result.score) }), h('span', { text: `/${exam.total}` })) : null),
       exam.summary ? h('p', { class: 'sub', text: exam.summary }) : null,
       h('div', { class: 'links' },
-        exam.examPdf ? pdfButton('문제지', exam.examPdf, `실모-제${exam.round ?? ''}회-문제지.pdf`, true) : null,
-        exam.solPdf ? pdfButton('해설지', exam.solPdf, `실모-제${exam.round ?? ''}회-해설지.pdf`, false) : null,
-        valid ? h('button', { class: 'btn quiet', type: 'button', text: openOmr === exam.date ? '접기' : result ? '결과' : '채점',
-          onclick: () => { openOmr = openOmr === exam.date ? null : exam.date; renderExams(); } }) : null),
+        exam.examPdf ? pdfButton('문제지', exam.examPdf, `${exam.subject}-제${exam.round ?? ''}회-문제지.pdf`, true) : null,
+        exam.solPdf ? pdfButton('해설지', exam.solPdf, `${exam.subject}-제${exam.round ?? ''}회-해설지.pdf`, false) : null,
+        valid ? h('button', { class: 'btn quiet', type: 'button', text: openOmr === exam.id ? '접기' : result ? '결과' : '채점',
+          onclick: () => { openOmr = openOmr === exam.id ? null : exam.id; renderExams(); } }) : null),
     ];
     if (result && result.wrong.length) {
       kids.push(h('ul', { class: 'misses' }, result.wrong.map((n) =>
         h('li', {}, h('span', { class: 'no', text: `${n}번` }), h('span', { text: (exam.types && exam.types[n - 1]) || '' })))));
     }
-    if (valid && openOmr === exam.date) kids.push(omrPanel(exam, result));
+    if (valid && openOmr === exam.id) kids.push(omrPanel(exam, result));
     return h('article', { class: 'exam' }, kids);
   }
 
@@ -398,8 +409,9 @@
       return (await Promise.all(files.map((f) => readJson(f.path).catch(() => null)))).filter(Boolean).map((r) => r.data);
     };
     const [ex, rs] = await Promise.all([pick('app-data/exams'), pick('app-data/results')]);
-    exams = ex.sort((a, b) => b.date.localeCompare(a.date));
-    results = Object.fromEntries(rs.map((r) => [r.date, r]));
+    const norm = (e) => ({ subject: '수학', minutes: null, ...e, id: e.id || e.date, total: e.total ?? (e.points || []).reduce((a, b) => a + b, 0) });
+    exams = ex.map(norm).sort((a, b) => b.date.localeCompare(a.date) || SUBJECTS.indexOf(a.subject) - SUBJECTS.indexOf(b.subject));
+    results = Object.fromEntries(rs.map((r) => [r.id || r.date, r]));
   }
 
   // ── 시작 ───────────────────────────────────────────
@@ -439,6 +451,7 @@
     store.del('gh-token'); token = null; loaded = false; wrongs = []; exams = []; results = {};
     $('logout').textContent = '연결 해제'; logoutArmed = false; showSetup();
   });
+  for (const b of document.querySelectorAll('#subjects button')) b.addEventListener('click', () => { subject = b.dataset.s; store.set('subject', subject); renderWrongs(); });
   $('refresh').addEventListener('click', refresh);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && loaded) refresh(); });
 

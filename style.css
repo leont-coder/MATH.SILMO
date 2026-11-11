@@ -133,3 +133,7 @@ section.view { display: flex; flex-direction: column; gap: 18px; }
 .setup input { width: 100%; min-height: 50px; padding: 0 14px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--card); }
 .foot { display: flex; justify-content: center; gap: 24px; }
 @media (prefers-reduced-motion: no-preference) { .btn, .tabs a, .bub { transition: background-color .12s, color .12s, box-shadow .12s; } }
+
+.subjects { display: flex; gap: 8px; }
+.subjects button { min-height: 40px; padding: 0 18px; border-radius: 999px; border: none; background: var(--fill); color: var(--soft); font-weight: 600; font-size: 15px; }
+.subjects button[aria-pressed="true"] { background: var(--ink); color: var(--card); }
