@@ -307,8 +307,20 @@
     const rows = exam.answers.map((correct, i) => {
       const n = i + 1;
       const isShort = exam.formats[i] === '단답';
+      const isEssay = exam.formats[i] === '서술';
       let field;
-      if (isShort) {
+      if (isEssay) {
+        // 서술형은 해설지의 모범 답안과 견주어 스스로 표시한다.
+        const marks = [['○', 1], ['✕', 0]].map(([label, v]) => h('button', {
+          class: 'bub self', type: 'button', text: label, 'aria-pressed': String(answers[i] === v), 'aria-label': `${n}번 ${v ? '맞음' : '틀림'}`, disabled: done,
+          onclick: () => {
+            answers[i] = answers[i] === v ? null : v;
+            marks.forEach((b, j) => b.setAttribute('aria-pressed', String(answers[i] === (j === 0 ? 1 : 0))));
+            store.set(draftKey(exam.id), answers);
+          },
+        }));
+        field = h('div', { class: 'bubbles' }, h('span', { class: 'essay', text: '서술형' }), marks);
+      } else if (isShort) {
         field = h('input', {
           type: 'text', inputmode: 'numeric', maxlength: '3', id: `a-${exam.id}-${n}`, value: answers[i] ?? '',
           'aria-label': `${n}번 답`, disabled: done,
@@ -329,7 +341,7 @@
       if (done) {
         const ok = !result.wrong.includes(n);
         cls += ok ? ' ok' : ' ng';
-        mark = h('span', { class: 'mark', text: ok ? '○' : `정답 ${isShort ? correct : CIRC[correct - 1]}` });
+        mark = h('span', { class: 'mark', text: ok ? '○' : isEssay ? '✕' : `정답 ${isShort ? correct : CIRC[correct - 1]}` });
       }
       return h('div', { class: cls }, h('span', { class: 'n', text: n + '.' }), field, mark);
     });

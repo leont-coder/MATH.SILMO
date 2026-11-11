@@ -137,3 +137,5 @@ section.view { display: flex; flex-direction: column; gap: 18px; }
 .subjects { display: flex; gap: 8px; }
 .subjects button { min-height: 40px; padding: 0 18px; border-radius: 999px; border: none; background: var(--fill); color: var(--soft); font-weight: 600; font-size: 15px; }
 .subjects button[aria-pressed="true"] { background: var(--ink); color: var(--card); }
+.bub.self { width: 44px; border-radius: 12px; font-size: 15px; }
+.q .essay { font-size: 13px; font-weight: 600; color: var(--soft); align-self: center; margin-right: 4px; }
